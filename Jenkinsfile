@@ -1,54 +1,51 @@
 pipeline {
-  agent any
-
-  options {
-    buildDiscarder(logRotator(numToKeepStr: '5'))
-  }
-
-  environment {
-    SONARQUBE_ENV = 'sq1'
-  }
-
-  stages {
-    stage('Checkout') {
-      steps {
-        checkout scm
-      }
+    agent any
+    tools {
+        maven 'MAVEN_HOME'
     }
 
-    stage('Scan with SonarQube') {
-      steps {
-        withSonarQubeEnv(SONARQUBE_ENV) {
-          sh './mvn clean org.sonarsource.scanner.maven:sonar-maven-plugin:3.8.1:sonar'
+    environment {
+        SONAR_HOST_URL = 'http://localhost:9000'
+        SONAR_AUTH_TOKEN = credentials('credential')
+    }
+
+    stages {
+        stage('Checkout Code') {
+            steps {
+                git branch: 'master', url: 'https://github.com/Abdurahman252\TAST3.git'
+            }
         }
-      }
-    }
 
-    stage('Build') {
-      steps {
-        sh './mvn clean package'
-      }
-    }
+        stage('Build') {
+            steps {
+                sh 'mvn clean compile'
+            }
+        }
 
-    stage('Test') {
-      steps {
-        sh './mvn test'
-      }
-    }
+        stage('Test') {
+            steps {
+                sh 'mvn test'
+            }
+        }
 
-    stage('Deploy') {
-      steps {
-        sh './mvn deploy'
-      }
-    }
-  }
+        stage('Code Coverage') {
+            steps {
+                sh 'mvn verify'
+            }
+        }
 
-  post {
-    success {
-      echo 'Pipeline completed successfully!'
+        stage('SonarQube Analysis') {
+            steps {
+                withSonarQubeEnv('SonarQube') {
+                    sh """
+                    mvn sonar:sonar \
+                    -Dsonar.projectKey=sample_project10 \
+                    -Dsonar.host.url=$SONAR_HOST_URL \
+                    -Dsonar.login=$SONAR_AUTH_TOKEN \
+                    -Dsonar.coverage.jacoco.xmlReportPaths=target/site/jacoco/jacoco.xml
+                    """
+                }
+            }
+        }
     }
-    failure {
-      echo 'Pipeline failed!'
-    }
-  }
 }
